@@ -279,6 +279,10 @@ function register_xplane_handler()
         return meters * 3.28084
     end
 
+    local TRANSPARENT_PERCENT = 0.55   -- the darkness of the windows background
+    local FRAME_WIDTH = 450
+    local LINE_HEIGHT = 20
+
     -- DataRefs
     local latitude_data_ref = nil
     local longitude_data_ref = nil
@@ -304,16 +308,22 @@ function register_xplane_handler()
     end
 
     function ScriptedATC_show_conditions()
-        local posx = SCREEN_WIDTH - 500
-        local posy = SCREEN_HIGHT - 200          -- SIC
-        local line_height = 20
+        local posx = SCREEN_WIDTH - FRAME_WIDTH
+        local posy = SCREEN_HIGHT - 120          -- SIC
 
+        XPLMSetGraphicsState(0,0,0,1,1,0,0)
+        glColor4f(0,0,0,TRANSPARENT_PERCENT)
+        glRectf(posx-10, posy+10, posx + FRAME_WIDTH + 20, posy - 10 * LINE_HEIGHT - 20)
         for k, condition in ipairs(conditions_) do
-            draw_string_Helvetica_18(posx, posy - k * line_height,
-                                     string.format("%s => %s", condition.desc, condition.triggered))
+            if condition.triggered then
+                glColor4f(0.3,1.0,0.3,1)
+            else
+                glColor4f(0.8,0.8,0.8,1)
+            end
+            draw_string_Helvetica_18(posx, posy - k * LINE_HEIGHT, condition.desc)
         end
     end
-    
+
     print("Initializing X-Plane Scripted ATC Handler")
 
     latitude_data_ref = XPLMFindDataRef("sim/flightmodel/position/latitude")
