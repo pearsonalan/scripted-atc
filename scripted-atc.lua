@@ -1,8 +1,12 @@
 #!/usr/bin/env lua
 
-printf = function(s, ...)
-            return io.write(s:format(...))
-         end 
+local debug_print = false
+
+function dprintf(s, ...)
+    if debug_print then
+        return print(s:format(...))
+    end
+end 
 
 function dump(o)
    if type(o) == 'table' then
@@ -109,9 +113,9 @@ function intersect(s1, s2)
                                  {s2.a.lon - s1.a.lon, s2.b.lon - s1.a.lon}}
     local ds3 = determinant_sign{{s2.a.lat - s1.b.lat, s2.b.lat - s1.b.lat},
                                  {s2.a.lon - s1.b.lon, s2.b.lon - s1.b.lon}}
-    -- printf("  s0=%d, s1=%d, s2=%d, s3=%d\n", ds0, ds1, ds2, ds3)
+    -- dprintf("  s0=%d, s1=%d, s2=%d, s3=%d", ds0, ds1, ds2, ds3)
     if ds0 ~= ds1 and ds2 ~= ds3 then
-        -- printf("  INTERSECTION detected!!\n")
+        -- dprintf("  INTERSECTION detected!!")
         return true
     end
     return false
@@ -161,10 +165,10 @@ function test_conditions(pos)
     output_ = ""
     for k, condition in ipairs(conditions_) do
         if not condition.triggered then
-            printf(" [evaluating %s]\n", condition.desc)
+            dprintf("Evaluating %s", condition.desc)
             result = condition["cond"]()
             if result then
-                printf(" [condition %s is triggered]\n", condition.desc)
+                dprintf("Condition %s is triggered", condition.desc)
                 condition["handler"]()
                 condition.triggered = true
             end
@@ -172,11 +176,12 @@ function test_conditions(pos)
             break
         end
     end
+    prev_pos_ = pos
 end
 
 function show_conditions()
     for k, condition in ipairs(conditions_) do
-        printf(" - %s => %s\n", condition.desc, condition.triggered)
+        dprintf(" - %s => %s", condition.desc, condition.triggered)
     end
 end
 
@@ -186,9 +191,9 @@ end
 --
 
 function distance_from(loc)
-    -- printf("Evaluating distance from %s to %s\n", dump(current_pos_), dump(loc))
+    -- dprintf("Evaluating distance from %s to %s", dump(current_pos_), dump(loc))
     local dist = haversine_pos(loc, current_pos_)
-    -- printf("dist to %s = %0.2f\n", dump(loc), dist)
+    -- dprintf("dist to %s = %0.2f", dump(loc), dist)
     return dist 
 end
 
@@ -210,7 +215,10 @@ end
 
 function say(f)
     output_ = output_ .. f .. " "
-    printf("SAY: %s\n", f)
+    print(string.format("SAY: %s", f))
+    if XPLANE_VERSION ~= nil then
+        XPLMSpeakString("November 7 victor delta, " .. f)
+    end
     last_transmission_ = time_
 end
 
@@ -219,7 +227,6 @@ end
 -- TEST DRIVERS
 -- 
 
-
 function fly_leg(to, groundspeed, first) 
     local start_pos = current_pos_
     local start_time = time_
@@ -227,14 +234,14 @@ function fly_leg(to, groundspeed, first)
     local ete_hrs = distance / groundspeed
     local ete_sec = ete_hrs * 3600
 
-    printf("LEG: Flying from %s to %s\n", pos_to_string(current_pos_),
+    dprintf("LEG: Flying from %s to %s", pos_to_string(current_pos_),
           pos_to_string(to))
-    printf("LEG: Distance is %0.1f nm\n", distance)
-    printf("LEG: ETE is %0.4f hrs (%0.1f seconds)\n", ete_hrs, ete_sec)
+    dprintf("LEG: Distance is %0.1f nm", distance)
+    dprintf("LEG: ETE is %0.4f hrs (%0.1f seconds)", ete_hrs, ete_sec)
 
     function process_location(time, pos) 
         time_ = time
-        printf("t = %d sec: pos = %s\n", time, pos_to_string(pos))
+        dprintf("t = %d sec: pos = %s", time, pos_to_string(pos))
         test_conditions(pos)
         show_conditions()
 
@@ -243,8 +250,6 @@ function fly_leg(to, groundspeed, first)
         else
             print_csv(pos, output_, "#00FF00")
         end
-
-        prev_pos_ = pos
     end
 
     if first then
@@ -267,6 +272,70 @@ function fly(legs)
 end
 
 --
+-- FlyWithLua / X-Plane handler
+--
+function register_xplane_handler()
+    function meters_to_feet(meters)
+        return meters * 3.28084
+    end
+
+    -- DataRefs
+    local latitude_data_ref = nil
+    local longitude_data_ref = nil
+    local altitude_data_ref = nil
+
+    -- Values of DataRefs updated every second by read_data_refs
+    local latitude = 0.0
+    local longitude = 0.0
+    local altitude = 0.0
+
+    function read_data_refs()
+        latitude = XPLMGetDataf(latitude_data_ref)
+        longitude = XPLMGetDataf(longitude_data_ref)
+        altitude = meters_to_feet(XPLMGetDataf(altitude_data_ref))
+    end
+
+    function ScriptedATC_check_conditions()
+        time_ = os.clock()
+        read_data_refs()
+        dprintf("%d @ %0.4f,%0.4f,%d", time_, latitude, longitude, altitude)
+        test_conditions{lat=latitude, lon=longitude, alt=altitude}
+        -- show_conditions()
+    end
+
+    function ScriptedATC_show_conditions()
+        local posx = SCREEN_WIDTH - 500
+        local posy = SCREEN_HIGHT - 200          -- SIC
+        local line_height = 20
+
+        for k, condition in ipairs(conditions_) do
+            draw_string_Helvetica_18(posx, posy - k * line_height,
+                                     string.format("%s => %s", condition.desc, condition.triggered))
+        end
+    end
+    
+    print("Initializing X-Plane Scripted ATC Handler")
+
+    latitude_data_ref = XPLMFindDataRef("sim/flightmodel/position/latitude")
+    if latitude_data_ref == nil then
+        error("cannot find DataRef for latitude")
+    end
+
+    longitude_data_ref = XPLMFindDataRef("sim/flightmodel/position/longitude")
+    if longitude_data_ref == nil then
+        error("cannot find DataRef for longitude")
+    end
+
+    altitude_data_ref = XPLMFindDataRef("sim/flightmodel/position/elevation")
+    if altitude_data_ref == nil then
+        error("cannot find DataRef for altitude")
+    end
+
+    do_often("ScriptedATC_check_conditions()")
+    do_every_draw("ScriptedATC_show_conditions()")
+end
+
+--
 -- WELL-KNOWN LOCATIONS
 --
 
@@ -278,7 +347,7 @@ COMMENCEMENT_BAY_GATE = {a={lat=47.31544, lon=-122.4262}, b={lat=47.26328, lon=-
 SOUTH_VASHON_GATE = {a={lat=47.35, lon=-122.52}, b={lat=47.35, lon=-122.41}}
 VASHON_GATE = {a={lat=47.39, lon=-122.52}, b={lat=47.39, lon=-122.41}}
 
-function main()
+function add_conditions()
     add_condition("altitude() > 600", "say(\"Contact departure on 119.2\")")
     add_condition("since_last_transmission() > 10", "say(\"Radar Contact. Seattle altimeter is 29.92\")")
     add_condition("distance_from(KBFI) > 5", "say(\"Climb and maintain 3000\")")
@@ -289,7 +358,9 @@ function main()
     add_condition("crossed_gate(VASHON_GATE)", "say(\"Left turn to heading 240.\")")
     add_condition("distance_from(SCENN) < 2", "say(\"2 miles from SCENN. Join the localizer. Cross SCENN at 2000. Cleared ILS 17.\")")
     add_condition("distance_from(KTIW) < 5", "say(\"Contact Tacoma tower on 118.5\")")
+end
 
+function simulate_flight()
     fly{{from=KBFI, to=set_alt(copy(ZIGED), 3000), groundspeed=90},
         {to={lat=47.2843, lon=-122.4445, alt=3000}, groundspeed=120},
         {to={lat=47.41, lon=-122.46, alt=3000}, groundspeed=120},
@@ -297,4 +368,15 @@ function main()
         {to=KTIW, groundspeed=80}}
 end
 
-main()
+add_conditions()
+
+-- If not running under FlyWithLua, simulate a flight
+if XPLANE_VERSION == nil then
+    simulate_flight()
+end
+
+-- If running under FlyWithLua, register handlers
+if XPLANE_VERSION ~= nil then
+    print("Running scripted-atc in FlyWithLua")
+    register_xplane_handler()
+end
