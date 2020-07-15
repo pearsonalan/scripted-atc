@@ -391,7 +391,11 @@ function simulate_flight()
         {to=KTIW, groundspeed=80}}
 end
 
-ScriptedATC.load_script("KBFI-to-KTIW.script")
+if SCRIPT_DIRECTORY == nil then
+    SCRIPT_DIRECTORY = ".\\"
+end
+
+ScriptedATC.load_script(SCRIPT_DIRECTORY .. "KBFI-to-KTIW.script")
 
 -- If not running under FlyWithLua, simulate a flight
 if XPLANE_VERSION == nil then
