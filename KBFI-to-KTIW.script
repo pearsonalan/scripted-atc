@@ -1,0 +1,18 @@
+KBFI = {lat=47.53, lon=-122.30, alt=18}
+ZIGED = {lat=47.33, lon=-122.13}
+KTIW = {lat=47.268, lon=-122.5781, alt=295}
+SCENN = {lat=47.36, lon=-122.56}
+COMMENCEMENT_BAY_GATE = {a={lat=47.31544, lon=-122.4262}, b={lat=47.26328, lon=-122.4276}}
+SOUTH_VASHON_GATE = {a={lat=47.35, lon=-122.52}, b={lat=47.35, lon=-122.41}}
+VASHON_GATE = {a={lat=47.39, lon=-122.52}, b={lat=47.39, lon=-122.41}}
+
+WHEN altitude() > 600 THEN say("Contact departure on 119.2")
+WHEN since_last_transmission() > 10 THEN say("Radar Contact. Seattle altimeter is 29.92")
+WHEN distance_from(KBFI) > 5 THEN say("Climb and maintain 3000")
+WHEN distance_from(ZIGED) < 2 THEN say("Fly heading 240")
+WHEN crossed_gate(COMMENCEMENT_BAY_GATE) THEN say("Turn right to 340")
+WHEN crossed_gate(SOUTH_VASHON_GATE) THEN say("Change to Seattle approach on 120.1")
+WHEN since_last_transmission() > 10 THEN say("Seattle altimeter is 29.92")
+WHEN crossed_gate(VASHON_GATE) THEN say("Left turn to heading 240.")
+WHEN distance_from(SCENN) < 2 THEN say("2 miles from SCENN. Join the localizer. Cross SCENN at 2000. Cleared ILS 17.")
+WHEN distance_from(KTIW) < 5 THEN say("Contact Tacoma tower on 118.5")

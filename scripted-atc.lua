@@ -1,5 +1,19 @@
 #!/usr/bin/env lua
 
+-- Define loadstring to support later versions of Lua
+if loadstring == nil then
+    loadstring = function (s)
+        return load(s)
+    end
+end
+
+-- Define math.pow for lua >= 5.3
+if math.pow == nil then
+    math.pow = function(x,y)
+        return x^y
+    end
+end
+
 local debug_print = false
 
 function dprintf(s, ...)
@@ -186,6 +200,29 @@ function show_conditions()
 end
 
 
+local ScriptedATC = (function () 
+    local load_script = function(script_file) 
+        local file = io.open(script_file, "r")
+        if file == nil then
+            error(string.format("Cannot read script from %s", script_file))
+        end
+        while true do
+            local line = file:read()
+            if line == nil then break end
+            dprintf("SCRIPT: %s", line)
+            local start_pos, end_pos, condition, action = string.find(line, "WHEN (.+) THEN (.+)")
+            if start_pos == nil then
+                loadstring(line)()
+            else
+                dprintf("COND: %s; ACTION: %s", condition, action)
+                add_condition(condition, action)
+            end
+        end
+    end
+
+    return {load_script=load_script}
+end)()
+
 --
 -- CONDITION FUNCTIONS
 --
@@ -215,7 +252,8 @@ end
 
 function say(f)
     output_ = output_ .. f .. " "
-    print(string.format("SAY: %s", f))
+    print(string.format("[t=%d, pos=%s] SAY: %s",
+          math.floor(time_), pos_to_string(current_pos_), f))
     if XPLANE_VERSION ~= nil then
         XPLMSpeakString("November 7 victor delta, " .. f)
     end
@@ -241,12 +279,12 @@ function fly_leg(to, groundspeed, first)
 
     function process_location(time, pos) 
         time_ = time
-        dprintf("t = %d sec: pos = %s", time, pos_to_string(pos))
+        dprintf("t = %d sec: pos = %s", math.floor(time), pos_to_string(pos))
         test_conditions(pos)
         show_conditions()
 
         if output_ == "" then
-            print_csv(pos, string.format("%d", time), "#FF00FF")
+            print_csv(pos, string.format("%d", math.floor(time)), "#FF00FF")
         else
             print_csv(pos, output_, "#00FF00")
         end
@@ -345,31 +383,6 @@ function register_xplane_handler()
     do_every_draw("ScriptedATC_show_conditions()")
 end
 
---
--- WELL-KNOWN LOCATIONS
---
-
-KBFI = {lat=47.53, lon=-122.30, alt=18}
-ZIGED = {lat=47.33, lon=-122.13}
-KTIW = {lat=47.268, lon=-122.5781, alt=295}
-SCENN = {lat=47.36, lon=-122.56}
-COMMENCEMENT_BAY_GATE = {a={lat=47.31544, lon=-122.4262}, b={lat=47.26328, lon=-122.4276}}
-SOUTH_VASHON_GATE = {a={lat=47.35, lon=-122.52}, b={lat=47.35, lon=-122.41}}
-VASHON_GATE = {a={lat=47.39, lon=-122.52}, b={lat=47.39, lon=-122.41}}
-
-function add_conditions()
-    add_condition("altitude() > 600", "say(\"Contact departure on 119.2\")")
-    add_condition("since_last_transmission() > 10", "say(\"Radar Contact. Seattle altimeter is 29.92\")")
-    add_condition("distance_from(KBFI) > 5", "say(\"Climb and maintain 3000\")")
-    add_condition("distance_from(ZIGED) < 2", "say(\"Fly heading 240\")")
-    add_condition("crossed_gate(COMMENCEMENT_BAY_GATE)", "say(\"Turn right to 340\")")
-    add_condition("crossed_gate(SOUTH_VASHON_GATE)", "say(\"Change to Seattle approach on 120.1\")")
-    add_condition("since_last_transmission() > 10", "say(\"Seattle altimeter is 29.92\")")
-    add_condition("crossed_gate(VASHON_GATE)", "say(\"Left turn to heading 240.\")")
-    add_condition("distance_from(SCENN) < 2", "say(\"2 miles from SCENN. Join the localizer. Cross SCENN at 2000. Cleared ILS 17.\")")
-    add_condition("distance_from(KTIW) < 5", "say(\"Contact Tacoma tower on 118.5\")")
-end
-
 function simulate_flight()
     fly{{from=KBFI, to=set_alt(copy(ZIGED), 3000), groundspeed=90},
         {to={lat=47.2843, lon=-122.4445, alt=3000}, groundspeed=120},
@@ -378,7 +391,7 @@ function simulate_flight()
         {to=KTIW, groundspeed=80}}
 end
 
-add_conditions()
+ScriptedATC.load_script("KBFI-to-KTIW.script")
 
 -- If not running under FlyWithLua, simulate a flight
 if XPLANE_VERSION == nil then

@@ -1,0 +1,4 @@
+FOO = {lat=47.31, lon=-122.55}
+
+WHEN altitude() > 600 THEN say("Contact Seattle approach")
+WHEN distance_from(FOO) < 5 THEN say("You found foo")
