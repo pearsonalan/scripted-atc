@@ -155,6 +155,8 @@ local prev_pos_ = nil
 local time_ = 0
 local last_transmission_ = 0
 local output_ = nil
+local contacted_atc_on_ = nil
+local contacted_atc_time_ = 0
 
 --
 -- CONDITION REGISTRATION / TESTING
@@ -246,6 +248,14 @@ function since_last_transmission()
     return time_ - last_transmission_
 end
 
+function since_last_resposne()
+    return time_ - contacted_atc_time_
+end
+
+function contacted_atc_on(frequency)
+    return contacted_atc_on_ == frequency
+end
+
 -- 
 -- ACTIONS
 --
@@ -260,6 +270,67 @@ function say(f)
     last_transmission_ = time_
 end
 
+--
+-- Radio handlers
+--
+
+-- Converts a frequency expressed as an integer in Hz to a string
+-- in KHz.
+function frequency_to_string(freq)
+    return string.format("%d.%02d", freq / 100, freq % 100)
+end
+
+function register_radio_handler()
+    -- DataRefs
+    local audio_panel_out_data_ref = nil
+    local com1_freq_hz_data_ref = nil
+    local com2_freq_hz_data_ref = nil
+
+    function read_radio_data_refs()
+        return XPLMGetDatai(audio_panel_out_data_ref), 
+               XPLMGetDatai(com1_freq_hz_data_ref),
+               XPLMGetDatai(com2_freq_hz_data_ref)
+    end
+
+    audio_panel_out_data_ref = XPLMFindDataRef("sim/cockpit/switches/audio_panel_out")
+    if audio_panel_out_data_ref == nil then
+        error("cannot find DataRef for audio_panel_out")
+    end
+
+    com1_freq_hz_data_ref = XPLMFindDataRef("sim/cockpit/radios/com1_freq_hz")
+    if com1_freq_hz_data_ref == nil then
+        error("cannot find DataRef for com1_freq_hz")
+    end
+
+    com2_freq_hz_data_ref = XPLMFindDataRef("sim/cockpit/radios/com2_freq_hz")
+    if com2_freq_hz_data_ref == nil then
+        error("cannot find DataRef for com2_freq_hz")
+    end
+
+    function contact_atc_end() 
+        local selected_com_out, com1_freq_hz, com2_freq_hz = read_radio_data_refs()
+        local frequency = nil
+        local com = nil
+        if selected_com_out == 6 then
+            com = "COM1"
+            frequency = com1_freq_hz
+        elseif selected_com_out == 7 then
+            com = "COM2"
+            frequency = com2_freq_hz
+        end
+        if frequency ~= nil then
+            local msg = string.format("%s frequency is %s", com,
+                                      frequency_to_string(frequency))
+            print(msg)
+            contacted_atc_on_ = frequency_to_string(frequency)
+            contacted_atc_time_ = time_
+        end
+    end
+
+    print("Creating command for scripted atc")
+    create_command("FlyWithLua/ScriptedATC/ContactATC", "Contact ATC in Script",
+                   "", "", "contact_atc_end()")
+end
 
 --
 -- TEST DRIVERS
@@ -395,7 +466,7 @@ if SCRIPT_DIRECTORY == nil then
     SCRIPT_DIRECTORY = ".\\"
 end
 
-ScriptedATC.load_script(SCRIPT_DIRECTORY .. "KBFI-to-KTIW.script")
+ScriptedATC.load_script(SCRIPT_DIRECTORY .. "contact-atc.script")
 
 -- If not running under FlyWithLua, simulate a flight
 if XPLANE_VERSION == nil then
@@ -405,5 +476,6 @@ end
 -- If running under FlyWithLua, register handlers
 if XPLANE_VERSION ~= nil then
     print("Running scripted-atc in FlyWithLua")
+    register_radio_handler()
     register_xplane_handler()
 end
