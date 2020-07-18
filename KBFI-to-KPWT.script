@@ -1,0 +1,22 @@
+ELLIOTT_BAY = {a={lat=47.63, lon=-122.37}, b={lat=47.6,lon=-122.39}}
+PUGET_SOUND = {a={lat=47.7, lon=-122.45}, b={lat=47.55,lon=-122.45}}
+EAST_BAINBRIDGE = {a={lat=47.7, lon=-122.5}, b={lat=47.55,lon=-122.5}}
+WEST_BAINBRIDGE = {a={lat=47.7, lon=-122.57}, b={lat=47.55,lon=-122.57}}
+WUMOX = {lat=47.59, lon=122.67}
+KPWT = {lat=47.5, lon=122.76}
+
+WHEN contacted_atc_on("121.90") THEN say("Cleared to Bremerton via cobain 1 departure, then direct as filed. Climb via the SID. Departure frequency 1 1 9 point 2. Squak 3 4 1 3.")
+WHEN contacted_atc_on("121.90") THEN say("Readback correct.")
+WHEN contacted_atc_on("120.60") THEN say("Wind 3 0 0 at 7. Cleared for takeoff runway 3 2 left.")
+WHEN altitude() > 300 THEN say("Contact departure.")
+WHEN contacted_atc_on("119.20") THEN say("Radar contact.")
+WHEN altitude() > 1000 THEN say("Climb and maintain 3000")
+WHEN crossed_gate(ELLIOTT_BAY) THEN say("Fly heading 2 4 0, vectors to Bremerton.")
+WHEN crossed_gate(PUGET_SOUND) THEN say("Fly heading 2 6 0")
+WHEN crossed_gate(EAST_BAINBRIDGE) THEN say("Contact Seattle approach on 1 2 7 point 1.")
+WHEN contacted_atc_on("127.10") THEN say("Seattle Approach, Welcome. Turn right heading of 2 9 0. Vectors to final.")
+WHEN crossed_gate(WEST_BAINBRIDGE) THEN say("Descend and maintain 2 thousand 6 hundred")
+WHEN distance_from(WUMOX) < 4 THEN say("4 miles from WUMOX. Turn left heading 230. Maintain 2600 until established on the localizer. Cleared ILS runway 2 0 approach Bremerton")
+WHEN distance_from(KPWT) < 8 THEN say("Radar services terminated. change to advisory frequency approved.")
+
+FLIGHT = {}

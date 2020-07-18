@@ -6,13 +6,18 @@ COMMENCEMENT_BAY_GATE = {a={lat=47.31544, lon=-122.4262}, b={lat=47.26328, lon=-
 SOUTH_VASHON_GATE = {a={lat=47.35, lon=-122.52}, b={lat=47.35, lon=-122.41}}
 VASHON_GATE = {a={lat=47.39, lon=-122.52}, b={lat=47.39, lon=-122.41}}
 
-WHEN altitude() > 600 THEN say("Contact departure on 119.2")
-WHEN since_last_transmission() > 10 THEN say("Radar Contact. Seattle altimeter is 29.92")
-WHEN distance_from(KBFI) > 5 THEN say("Climb and maintain 3000")
-WHEN distance_from(ZIGED) < 2 THEN say("Fly heading 240")
-WHEN crossed_gate(COMMENCEMENT_BAY_GATE) THEN say("Turn right to 340")
+WHEN contacted_atc_on("121.90") THEN say("Cleared to Tacoma Narrows via needle 1 departure, then direct as filed. Climb via the SID. Departure frequency 1 1 9 point 2. Squak 3 4 1 3.")
+WHEN contacted_atc_on("121.90") THEN say("Readback correct.")
+WHEN altitude() > 300 THEN say("Contact departure on 1 1 9 point 2")
+WHEN contacted_atc_on("119.20") THEN say("Radar Contact. Seattle altimeter is 29.92")
+WHEN distance_from(KBFI) > 3 THEN say("Climb and maintain 3000")
+WHEN distance_from(ZIGED) < 2 THEN say("Fly heading 2 4 0")
+WHEN crossed_gate(COMMENCEMENT_BAY_GATE) THEN say("Turn right to 3 4 0")
 WHEN crossed_gate(SOUTH_VASHON_GATE) THEN say("Change to Seattle approach on 120.1")
-WHEN since_last_transmission() > 10 THEN say("Seattle altimeter is 29.92")
-WHEN crossed_gate(VASHON_GATE) THEN say("Left turn to heading 240.")
-WHEN distance_from(SCENN) < 2 THEN say("2 miles from SCENN. Join the localizer. Cross SCENN at 2000. Cleared ILS 17.")
-WHEN distance_from(KTIW) < 5 THEN say("Contact Tacoma tower on 118.5")
+WHEN contacted_atc_on("120.10") THEN say("Seattle altimeter is 29.92")
+WHEN crossed_gate(VASHON_GATE) THEN say("Left turn to heading 2 4 0.")
+WHEN distance_from(SCENN) < 2 THEN say("2 miles from SCENN. Join the localizer. Cross SCENN at 2000. Cleared ILS 1 7.")
+WHEN distance_from(KTIW) < 5 THEN say("Contact Tacoma tower on 1 1 8 point 5")
+WHEN contacted_atc_on("118.5") THEN say("Tacoma tower, cleared to land runway 1 7.")
+
+FLIGHT = {{from=KBFI, to=set_alt(copy(ZIGED), 3000), groundspeed=90}, {to={lat=47.2843, lon=-122.4445, alt=3000}, groundspeed=120}, {to={lat=47.41, lon=-122.46, alt=3000}, groundspeed=120}, {to={lat=47.3762, lon=-122.5563, alt=2000}, groundspeed=120}, {to=KTIW, groundspeed=80}}

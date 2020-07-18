@@ -14,7 +14,21 @@ if math.pow == nil then
     end
 end
 
+PLANE_TYPE = "Skyhawk"
+
+if PLANE_TAILNUMBER == nil then
+    PLANE_TAILNUMBER = "N172SP"
+end
+
+if SCRIPT_DIRECTORY == nil then
+    SCRIPT_DIRECTORY = ".\\"
+end
+
 local debug_print = false
+
+function printf(s, ...)
+    return print(s:format(...))
+end 
 
 function dprintf(s, ...)
     if debug_print then
@@ -42,6 +56,60 @@ function copy(obj)
     return res
 end
 
+PHONETICS = {
+    a = "alpha",
+    b = "bravo" ,
+    c = "charlie" ,
+    d = "delta" ,
+    e = "echo" ,
+    f = "foxtrot" ,
+    g = "golf",
+    h = "hotel",
+    i = "india",
+    j = "juliett",
+    k = "kilo",
+    l = "lima",
+    m = "mike",
+    n = "november",
+    o = "oscar",
+    p = "papa",
+    q = "quebec",
+    r = "romeo",
+    s = "sierra",
+    t = "tango",
+    u = "uniform",
+    v = "victor",
+    w = "whiskey",
+    x = "x-ray",
+    y = "yankee",
+    z = "zulu"
+}
+
+function phonetic_string(str) 
+    local s = nil 
+    for i = 1,string.len(str) do
+        local p = PHONETICS[string.lower(string.sub(str, i, i))]
+        if p == nil then
+            p = string.sub(str, i, i)
+        end
+        if s == nil then
+            s = p
+        else
+            s = s .. " " .. p
+        end
+    end
+    
+    return s 
+end
+
+function phonetic_tailnumber()
+    return phonetic_string(PLANE_TAILNUMBER)
+end
+
+function phonetic_short_tailnumber()
+    return PLANE_TYPE .. " " .. phonetic_string(string.sub(PLANE_TAILNUMBER, -3))
+end
+
 function pos_to_string(pos) 
     return string.format("{lat=%0.4f, lon=%0.4f, alt=%0.1f}",
                          pos.lat, pos.lon, pos.alt)
@@ -50,6 +118,10 @@ end
 function set_alt(pos, alt)
     pos.alt = alt
     return pos
+end
+
+function meters_to_feet(meters)
+    return meters * 3.28084
 end
 
 function haversine(lat1, lon1, lat2, lon2) 
@@ -135,75 +207,105 @@ function intersect(s1, s2)
     return false
 end
 
-local csv_file_
-
-function print_csv(pos, label, color)
-    if csv_file_ == nil then
-        csv_file_ = io.open("flight.csv", "w")
-        csv_file_:write("lat,lng,name,color,note\n")
-    end
-    csv_file_:write(string.format("%0.5f,%0.5f,%s,%s\n", pos.lat, pos.lon, label, color))
-end
-
---
--- GLOBAL STATE
---
-
-local conditions_ = {}
-local current_pos_ = nil
-local prev_pos_ = nil
-local time_ = 0
-local last_transmission_ = 0
-local output_ = nil
-local contacted_atc_on_ = nil
-local contacted_atc_time_ = 0
-
---
--- CONDITION REGISTRATION / TESTING
---
-
-function add_condition(cond, handler) 
-    local cond_fn, hander_fn, err
-    cond_fn, err = loadstring("return function() return " .. cond .. "; end")
-    if err ~= nil then
-        error(err)
-    end
-    handler_fn, err = loadstring("return function() " .. handler .. "; end")
-    if err ~= nil then
-        error(err)
-    end
-    table.insert(conditions_, {desc=cond, cond=cond_fn(),
-                               triggered=false, handler=handler_fn()})
-end
-
-function test_conditions(pos)
-    current_pos_ = pos
-    output_ = ""
-    for k, condition in ipairs(conditions_) do
-        if not condition.triggered then
-            dprintf("Evaluating %s", condition.desc)
-            result = condition["cond"]()
-            if result then
-                dprintf("Condition %s is triggered", condition.desc)
-                condition["handler"]()
-                condition.triggered = true
-            end
-            -- only test the next un-triggered condition
-            break
-        end
-    end
-    prev_pos_ = pos
-end
-
-function show_conditions()
-    for k, condition in ipairs(conditions_) do
-        dprintf(" - %s => %s", condition.desc, condition.triggered)
-    end
-end
-
 
 local ScriptedATC = (function () 
+    --
+    -- STATE
+    --
+    local scripts_ = {}
+    local current_pos_ = nil
+    local prev_pos_ = nil
+    local time_ = 0
+    local start_time_ = 0
+    local last_transmission_time_ = 0
+    local output_ = nil
+    local contacted_atc_on_ = nil
+    local contacted_atc_time_ = 0
+
+    local csv_file_
+
+    local print_csv = function(pos, label, color)
+        if csv_file_ == nil then
+            csv_file_ = io.open("flight.csv", "w")
+            csv_file_:write("lat,lng,name,color,note\n")
+        end
+        csv_file_:write(string.format("%0.5f,%0.5f,%s,%s\n", pos.lat, pos.lon, label, color))
+    end
+
+    local reminder_ = ""
+    local reminder_start_time_ = 0
+
+    local show_reminder = function()
+        if reminder_ ~= "" then
+            local string_width = measure_string(reminder_, "Helvetica_18")
+            local opacity = math.min(1.0, math.max(0.0, 0.5 + math.sin((os.clock() - reminder_start_time_) * math.pi)))
+
+            glColor4f(0, 0, 0, opacity)
+            draw_string_Helvetica_18((SCREEN_WIDTH - string_width) / 2 + 2, SCREEN_HIGHT - 130 - 2, reminder_)
+
+            glColor4f(1.0, 1.0, 1.0, opacity)
+            draw_string_Helvetica_18((SCREEN_WIDTH - string_width) / 2, SCREEN_HIGHT-130, reminder_)
+        end
+    end
+
+    local reset_reminder = function()
+        if os.clock() - reminder_start_time_ > 3.0 then
+            reminder_ = ""
+        end
+    end
+
+    local set_reminder = function(message)
+        reminder_ = message
+        reminder_start_time_ = os.clock()
+    end
+
+    --
+    -- CONDITION REGISTRATION / TESTING
+    --
+
+    local add_condition = function(script, cond, handler) 
+        local cond_fn, hander_fn, err
+        cond_fn, err = loadstring("return function() return " .. cond .. "; end")
+        if err ~= nil then
+            error(err)
+        end
+        handler_fn, err = loadstring("return function() " .. handler .. "; end")
+        if err ~= nil then
+            error(err)
+        end
+        table.insert(script.conditions, {desc=cond, cond=cond_fn(),
+                                         triggered=false, handler=handler_fn()})
+    end
+
+    local test_conditions = function(pos)
+        current_pos_ = pos
+        output_ = ""
+        for _, script in ipairs(scripts_) do
+            for k, condition in ipairs(script.conditions) do
+                if not condition.triggered then
+                    dprintf("Evaluating %s", condition.desc)
+                    result = condition["cond"]()
+                    if result then
+                        dprintf("Condition %s is triggered", condition.desc)
+                        condition["handler"]()
+                        condition.triggered = true
+                    end
+                    -- only test the next un-triggered condition
+                    break
+                end
+            end
+        end
+        prev_pos_ = pos
+    end
+
+    local show_conditions = function()
+        for k, condition in ipairs(scripts_[1].conditions) do
+            dprintf(" - %s => %s", condition.desc, condition.triggered)
+        end
+    end
+
     local load_script = function(script_file) 
+        local script = {conditions={}}
         local file = io.open(script_file, "r")
         if file == nil then
             error(string.format("Cannot read script from %s", script_file))
@@ -217,12 +319,102 @@ local ScriptedATC = (function ()
                 loadstring(line)()
             else
                 dprintf("COND: %s; ACTION: %s", condition, action)
-                add_condition(condition, action)
+                add_condition(script, condition, action)
             end
+        end
+        table.insert(scripts_, script)
+    end
+
+    local say = function(message)
+        output_ = output_ .. message .. " "
+        print(string.format("[t=%d, pos=%s] SAY: %s",
+              math.floor(time_), pos_to_string(current_pos_), message))
+        if XPLANE_VERSION ~= nil then
+            XPLMSpeakString(phonetic_short_tailnumber() .. " " .. message)
+        end
+        last_transmission_time_ = time_
+    end
+
+    local fly_leg = function(to, groundspeed, first) 
+        local start_pos = current_pos_
+        local start_time = time_
+        local distance = haversine_pos(current_pos_, to) 
+        local ete_hrs = distance / groundspeed
+        local ete_sec = ete_hrs * 3600
+
+        dprintf("LEG: Flying from %s to %s", pos_to_string(current_pos_),
+              pos_to_string(to))
+        dprintf("LEG: Distance is %0.1f nm", distance)
+        dprintf("LEG: ETE is %0.4f hrs (%0.1f seconds)", ete_hrs, ete_sec)
+
+        function process_location(time, pos) 
+            time_ = time
+            dprintf("t = %d sec: pos = %s", math.floor(time), pos_to_string(pos))
+            test_conditions(pos)
+            show_conditions()
+
+            if output_ == "" then
+                print_csv(pos, string.format("%d", math.floor(time)), "#FF00FF")
+            else
+                print_csv(pos, output_, "#00FF00")
+            end
+        end
+
+        if first then
+            process_location(time_, start_pos)
+        end
+
+        for t = 15,ete_sec,15 do
+            local pos = interpolate(start_pos, to, t / ete_sec)
+            process_location(start_time + t, pos)
+        end
+        time_ = start_time + ete_sec
+    end
+
+    local fly = function(legs)
+        print("LEGS = " .. dump(legs))
+        current_pos_ = legs[1].from
+        prev_pos_ = legs[1].from
+        for i, leg in ipairs(legs) do
+            fly_leg(leg.to, leg.groundspeed, i == 1)
         end
     end
 
-    return {load_script=load_script}
+    return {
+        update_time = function() 
+            time_ = os.clock()
+            if start_time_ == 0 then
+                start_time_ = time_
+            end
+        end,
+        time = function() return time_ end,
+        start_time = function() return start_time_ end,
+
+        conditions = function() return scripts_[1].conditions end,
+
+        current_pos = function() return current_pos_ end,
+        prev_pos = function() return prev_pos_ end,
+        current_segment = function() return {a=prev_pos_, b=current_pos_} end,
+
+        last_transmission = function() return last_transmission_time_ end,
+        contacted_atc_time = function() return contacted_atc_time_ end,
+        contacted_atc_on = function() return contacted_atc_on_ end,
+        contacted_atc = function(frequency)
+            contacted_atc_on_ = frequency_to_string(frequency)
+            contacted_atc_time_ = time_
+        end,
+
+        load_script = load_script,
+        show_conditions = show_conditions,
+        test_conditions = test_conditions,
+
+        show_reminder = show_reminder,
+        reset_reminder = reset_reminder,
+        set_reminder = set_reminder,
+
+        fly = fly,
+        say = say
+    }
 end)()
 
 --
@@ -230,44 +422,43 @@ end)()
 --
 
 function distance_from(loc)
-    -- dprintf("Evaluating distance from %s to %s", dump(current_pos_), dump(loc))
-    local dist = haversine_pos(loc, current_pos_)
-    -- dprintf("dist to %s = %0.2f", dump(loc), dist)
-    return dist 
+    return haversine_pos(loc, ScriptedATC.current_pos())
 end
 
 function crossed_gate(gate)
-    return intersect(gate, {a=prev_pos_, b=current_pos_})
+    return intersect(gate, ScriptedATC.current_segment())
 end
 
 function altitude()
-    return current_pos_.alt
+    return ScriptedATC.current_pos().alt
 end
 
 function since_last_transmission()
-    return time_ - last_transmission_
+    return ScriptedATC.time() - ScriptedATC.last_transmission()
 end
 
 function since_last_resposne()
-    return time_ - contacted_atc_time_
+    return ScriptedATC.time() - ScriptedATC.contacted_atc_time()
 end
 
 function contacted_atc_on(frequency)
-    return contacted_atc_on_ == frequency
+    return ScriptedATC.contacted_atc_on() == frequency
+end
+
+function time_since_start()
+    return ScriptedATC.time() - ScriptedATC.start_time()
 end
 
 -- 
 -- ACTIONS
 --
 
-function say(f)
-    output_ = output_ .. f .. " "
-    print(string.format("[t=%d, pos=%s] SAY: %s",
-          math.floor(time_), pos_to_string(current_pos_), f))
-    if XPLANE_VERSION ~= nil then
-        XPLMSpeakString("November 7 victor delta, " .. f)
-    end
-    last_transmission_ = time_
+function say(message)
+    ScriptedATC.say(message)
+end
+
+function remind(message)
+    ScriptedATC.set_reminder(message)
 end
 
 --
@@ -277,7 +468,7 @@ end
 -- Converts a frequency expressed as an integer in Hz to a string
 -- in KHz.
 function frequency_to_string(freq)
-    return string.format("%d.%02d", freq / 100, freq % 100)
+    return string.format("%d.%02d", math.floor(freq / 100), freq % 100)
 end
 
 function register_radio_handler()
@@ -322,8 +513,7 @@ function register_radio_handler()
             local msg = string.format("%s frequency is %s", com,
                                       frequency_to_string(frequency))
             print(msg)
-            contacted_atc_on_ = frequency_to_string(frequency)
-            contacted_atc_time_ = time_
+            ScriptedATC.contacted_atc(frequency)
         end
     end
 
@@ -333,61 +523,9 @@ function register_radio_handler()
 end
 
 --
--- TEST DRIVERS
--- 
-
-function fly_leg(to, groundspeed, first) 
-    local start_pos = current_pos_
-    local start_time = time_
-    local distance = haversine_pos(current_pos_, to) 
-    local ete_hrs = distance / groundspeed
-    local ete_sec = ete_hrs * 3600
-
-    dprintf("LEG: Flying from %s to %s", pos_to_string(current_pos_),
-          pos_to_string(to))
-    dprintf("LEG: Distance is %0.1f nm", distance)
-    dprintf("LEG: ETE is %0.4f hrs (%0.1f seconds)", ete_hrs, ete_sec)
-
-    function process_location(time, pos) 
-        time_ = time
-        dprintf("t = %d sec: pos = %s", math.floor(time), pos_to_string(pos))
-        test_conditions(pos)
-        show_conditions()
-
-        if output_ == "" then
-            print_csv(pos, string.format("%d", math.floor(time)), "#FF00FF")
-        else
-            print_csv(pos, output_, "#00FF00")
-        end
-    end
-
-    if first then
-        process_location(time_, start_pos)
-    end
-
-    for t = 15,ete_sec,15 do
-        local pos = interpolate(start_pos, to, t / ete_sec)
-        process_location(start_time + t, pos)
-    end
-    time_ = start_time + ete_sec
-end
-
-function fly(legs)
-    current_pos_ = legs[1].from
-    prev_pos_ = legs[1].from
-    for i, leg in ipairs(legs) do
-        fly_leg(leg.to, leg.groundspeed, i == 1)
-    end
-end
-
---
 -- FlyWithLua / X-Plane handler
 --
 function register_xplane_handler()
-    function meters_to_feet(meters)
-        return meters * 3.28084
-    end
-
     local TRANSPARENT_PERCENT = 0.55   -- the darkness of the windows background
     local FRAME_WIDTH = 450
     local LINE_HEIGHT = 20
@@ -402,28 +540,29 @@ function register_xplane_handler()
     local longitude = 0.0
     local altitude = 0.0
 
-    function read_data_refs()
+    local read_data_refs = function()
         latitude = XPLMGetDataf(latitude_data_ref)
         longitude = XPLMGetDataf(longitude_data_ref)
         altitude = meters_to_feet(XPLMGetDataf(altitude_data_ref))
     end
 
-    function ScriptedATC_check_conditions()
-        time_ = os.clock()
+    function ScriptedATC_often()
+        ScriptedATC.update_time()
         read_data_refs()
-        dprintf("%d @ %0.4f,%0.4f,%d", time_, latitude, longitude, altitude)
-        test_conditions{lat=latitude, lon=longitude, alt=altitude}
-        -- show_conditions()
+        dprintf("%d @ %0.4f,%0.4f,%d", ScriptedATC.time(), latitude, longitude, altitude)
+        ScriptedATC.test_conditions{lat=latitude, lon=longitude, alt=altitude}
+        -- ScriptedATC.show_conditions()
+        ScriptedATC.reset_reminder()
     end
 
-    function ScriptedATC_show_conditions()
+    function ScriptedATC_every_draw()
         local posx = SCREEN_WIDTH - FRAME_WIDTH
         local posy = SCREEN_HIGHT - 120          -- SIC
 
         XPLMSetGraphicsState(0,0,0,1,1,0,0)
         glColor4f(0,0,0,TRANSPARENT_PERCENT)
         glRectf(posx-10, posy+10, posx + FRAME_WIDTH + 20, posy - 10 * LINE_HEIGHT - 20)
-        for k, condition in ipairs(conditions_) do
+        for k, condition in ipairs(ScriptedATC.conditions()) do
             if condition.triggered then
                 glColor4f(0.3,1.0,0.3,1)
             else
@@ -431,6 +570,8 @@ function register_xplane_handler()
             end
             draw_string_Helvetica_18(posx, posy - k * LINE_HEIGHT, condition.desc)
         end
+
+        ScriptedATC.show_reminder()
     end
 
     print("Initializing X-Plane Scripted ATC Handler")
@@ -450,27 +591,16 @@ function register_xplane_handler()
         error("cannot find DataRef for altitude")
     end
 
-    do_often("ScriptedATC_check_conditions()")
-    do_every_draw("ScriptedATC_show_conditions()")
+    do_often("ScriptedATC_often()")
+    do_every_draw("ScriptedATC_every_draw()")
 end
 
-function simulate_flight()
-    fly{{from=KBFI, to=set_alt(copy(ZIGED), 3000), groundspeed=90},
-        {to={lat=47.2843, lon=-122.4445, alt=3000}, groundspeed=120},
-        {to={lat=47.41, lon=-122.46, alt=3000}, groundspeed=120},
-        {to={lat=47.3762, lon=-122.5563, alt=2000}, groundspeed=120},
-        {to=KTIW, groundspeed=80}}
-end
-
-if SCRIPT_DIRECTORY == nil then
-    SCRIPT_DIRECTORY = ".\\"
-end
-
-ScriptedATC.load_script(SCRIPT_DIRECTORY .. "contact-atc.script")
+ScriptedATC.load_script(SCRIPT_DIRECTORY .. "KBFI-to-KTIW.script")
+ScriptedATC.load_script(SCRIPT_DIRECTORY .. "reminders.script")
 
 -- If not running under FlyWithLua, simulate a flight
 if XPLANE_VERSION == nil then
-    simulate_flight()
+    ScriptedATC.fly(FLIGHT)
 end
 
 -- If running under FlyWithLua, register handlers
