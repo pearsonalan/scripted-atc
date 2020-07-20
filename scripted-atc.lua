@@ -20,8 +20,12 @@ if PLANE_TAILNUMBER == nil then
     PLANE_TAILNUMBER = "N247VD"
 end
 
+if DIRECTORY_SEPARATOR == nil then
+	DIRECTORY_SEPARATOR = package.config:sub(1,1)
+end
+
 if SCRIPT_DIRECTORY == nil then
-    SCRIPT_DIRECTORY = ".\\"
+    SCRIPT_DIRECTORY = "." .. DIRECTORY_SEPARATOR
 end
 
 local debug_print = false
