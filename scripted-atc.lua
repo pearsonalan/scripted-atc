@@ -14,10 +14,10 @@ if math.pow == nil then
     end
 end
 
-PLANE_TYPE = "Skyhawk"
+PLANE_TYPE = "Mooney"
 
 if PLANE_TAILNUMBER == nil then
-    PLANE_TAILNUMBER = "N172SP"
+    PLANE_TAILNUMBER = "N247VD"
 end
 
 if SCRIPT_DIRECTORY == nil then
@@ -403,6 +403,9 @@ local ScriptedATC = (function ()
             contacted_atc_on_ = frequency_to_string(frequency)
             contacted_atc_time_ = time_
         end,
+        reset_atc_contact = function()
+            contacted_atc_on_ = nil
+        end,
 
         load_script = load_script,
         show_conditions = show_conditions,
@@ -442,7 +445,14 @@ function since_last_resposne()
 end
 
 function contacted_atc_on(frequency)
-    return ScriptedATC.contacted_atc_on() == frequency
+    if XPLANE_VERSION == nil then
+        return true
+    end
+    if ScriptedATC.contacted_atc_on() == frequency then
+        ScriptedATC.reset_atc_contact()
+        return true
+    end
+    return false
 end
 
 function time_since_start()
@@ -561,7 +571,7 @@ function register_xplane_handler()
 
         XPLMSetGraphicsState(0,0,0,1,1,0,0)
         glColor4f(0,0,0,TRANSPARENT_PERCENT)
-        glRectf(posx-10, posy+10, posx + FRAME_WIDTH + 20, posy - 10 * LINE_HEIGHT - 20)
+        glRectf(posx-10, posy+10, posx + FRAME_WIDTH + 20, posy - #(ScriptedATC.conditions()) * LINE_HEIGHT - 20)
         for k, condition in ipairs(ScriptedATC.conditions()) do
             if condition.triggered then
                 glColor4f(0.3,1.0,0.3,1)
@@ -598,14 +608,12 @@ end
 ScriptedATC.load_script(SCRIPT_DIRECTORY .. "KBFI-to-KTIW.script")
 ScriptedATC.load_script(SCRIPT_DIRECTORY .. "reminders.script")
 
--- If not running under FlyWithLua, simulate a flight
-if XPLANE_VERSION == nil then
-    ScriptedATC.fly(FLIGHT)
-end
-
--- If running under FlyWithLua, register handlers
 if XPLANE_VERSION ~= nil then
+    -- If running under FlyWithLua, register handlers
     print("Running scripted-atc in FlyWithLua")
     register_radio_handler()
     register_xplane_handler()
+else
+    -- If not running under FlyWithLua, simulate a flight
+    ScriptedATC.fly(FLIGHT)
 end

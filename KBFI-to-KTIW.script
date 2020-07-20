@@ -1,23 +1,25 @@
 KBFI = {lat=47.53, lon=-122.30, alt=18}
-ZIGED = {lat=47.33, lon=-122.13}
+NRVNA = {lat=47.37, lon=-122.17}
 KTIW = {lat=47.268, lon=-122.5781, alt=295}
 SCENN = {lat=47.36, lon=-122.56}
-COMMENCEMENT_BAY_GATE = {a={lat=47.31544, lon=-122.4262}, b={lat=47.26328, lon=-122.4276}}
+COMMENCEMENT_BAY_GATE = {a={lat=47.33, lon=-122.43}, b={lat=47.24, lon=-122.43}}
 SOUTH_VASHON_GATE = {a={lat=47.35, lon=-122.52}, b={lat=47.35, lon=-122.41}}
 VASHON_GATE = {a={lat=47.39, lon=-122.52}, b={lat=47.39, lon=-122.41}}
+COLVOS_PASS_GATE = {a={lat=47.34, lon=-122.54}, b={lat=47.43,lon=-122.52}}
 
-WHEN contacted_atc_on("121.90") THEN say("Cleared to Tacoma Narrows via needle 1 departure, then direct as filed. Climb via the SID. Departure frequency 1 1 9 point 2. Squak 3 4 1 3.")
+WHEN contacted_atc_on("121.90") THEN say("Cleared to Tacoma Narrows via Nirvana 1 departure, then direct as filed. Climb and maintain 2000, expect 3000 5 minutes after departure. Departure frequency 1 1 9 point 2. Squak 3 4 5 0.")
 WHEN contacted_atc_on("121.90") THEN say("Readback correct.")
+WHEN contacted_atc_on("120.60") THEN say("Cleared for takeoff, runway 1 4 right. Have a safe flight.")
 WHEN altitude() > 300 THEN say("Contact departure on 1 1 9 point 2")
 WHEN contacted_atc_on("119.20") THEN say("Radar Contact. Seattle altimeter is 29.92")
 WHEN distance_from(KBFI) > 3 THEN say("Climb and maintain 3000")
-WHEN distance_from(ZIGED) < 2 THEN say("Fly heading 2 4 0")
-WHEN crossed_gate(COMMENCEMENT_BAY_GATE) THEN say("Turn right to 3 4 0")
-WHEN crossed_gate(SOUTH_VASHON_GATE) THEN say("Change to Seattle approach on 120.1")
-WHEN contacted_atc_on("120.10") THEN say("Seattle altimeter is 29.92")
-WHEN crossed_gate(VASHON_GATE) THEN say("Left turn to heading 2 4 0.")
-WHEN distance_from(SCENN) < 2 THEN say("2 miles from SCENN. Join the localizer. Cross SCENN at 2000. Cleared ILS 1 7.")
+WHEN distance_from(NRVNA) < 2 THEN say("Fly heading 2 3 0")
+WHEN crossed_gate(COMMENCEMENT_BAY_GATE) THEN say("Turn right to 3 5 0")
+WHEN crossed_gate(SOUTH_VASHON_GATE) THEN say("Change to Seattle approach on 1 2 0 point 1")
+WHEN contacted_atc_on("120.10") THEN say("Descend and maintain 2000.")
+WHEN crossed_gate(VASHON_GATE) THEN say("Left turn to heading 2 1 0.")
+WHEN crossed_gate(COLVOS_PASS_GATE) THEN say("2 miles from SCENN. Join the localizer. Cross SCENN at 2000. Cleared ILS 1 7.")
 WHEN distance_from(KTIW) < 5 THEN say("Contact Tacoma tower on 1 1 8 point 5")
-WHEN contacted_atc_on("118.5") THEN say("Tacoma tower, cleared to land runway 1 7.")
+WHEN contacted_atc_on("118.50") THEN say("Tacoma tower, cleared to land runway 1 7.")
 
-FLIGHT = {{from=KBFI, to=set_alt(copy(ZIGED), 3000), groundspeed=90}, {to={lat=47.2843, lon=-122.4445, alt=3000}, groundspeed=120}, {to={lat=47.41, lon=-122.46, alt=3000}, groundspeed=120}, {to={lat=47.3762, lon=-122.5563, alt=2000}, groundspeed=120}, {to=KTIW, groundspeed=80}}
+FLIGHT = {{from=KBFI, to=set_alt(copy(NRVNA), 3000), groundspeed=90}, {to={lat=47.2843, lon=-122.4445, alt=3000}, groundspeed=120}, {to={lat=47.41, lon=-122.46, alt=3000}, groundspeed=120}, {to={lat=47.3762, lon=-122.5563, alt=2000}, groundspeed=120}, {to=KTIW, groundspeed=80}}

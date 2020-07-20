@@ -1,4 +1,4 @@
-WHEN time_since_start() > 1 THEN remind("Get your takeoff clearance")
+WHEN time_since_start() > 1 THEN remind("Contact 121.9 for IFR clearance")
 WHEN altitude() > 400 THEN remind("Climb checklist")
 WHEN altitude() > 2900 THEN remind("Cruise checklist")
 WHEN altitude() < 1000 THEN remind("Landing checklist")
