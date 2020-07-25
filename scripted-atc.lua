@@ -128,28 +128,37 @@ function meters_to_feet(meters)
     return meters * 3.28084
 end
 
+function to_radians(deg)
+	return deg * math.pi / 180.0
+end
+
 function haversine(lat1, lon1, lat2, lon2) 
     -- Radius of Earth in nautical miles
     local radius = 3440.1
 
-    -- distance between latitudes  and longitudes 
-    local dLat = (lat2 - lat1) * math.pi / 180.0
-    local dLon = (lon2 - lon1) * math.pi / 180.0 
-
-    -- convert to radians 
-    lat1 = lat1 * math.pi / 180.0 
-    lat2 = lat2 * math.pi / 180.0 
+    -- difference between latitudes and longitudes
+    local delta_lat = to_radians(lat2 - lat1)
+    local delta_lon = to_radians(lon2 - lon1)
 
     -- apply formulae 
-    local a = math.pow(math.sin(dLat / 2), 2) +  
-              math.pow(math.sin(dLon / 2), 2) *  
-              math.cos(lat1) * math.cos(lat2); 
+    local a = math.pow(math.sin(delta_lat / 2), 2) +
+              math.pow(math.sin(delta_lon / 2), 2) *
+              math.cos(to_radians(lat1)) * math.cos(to_radians(lat2));
     local c = 2 * math.asin(math.sqrt(a)); 
     return radius * c; 
 end 
 
 function haversine_pos(from, to) 
     return haversine(from.lat, from.lon, to.lat, to.lon)
+end
+
+function bearing(from, to)
+    local dLon = to_radians(to.lon - from.lon)
+	local y = math.sin(dLon) * math.cos(to_radians(to.lat))
+	local x = (math.cos(to_radians(from.lat)) * math.sin(to_radians(to.lat))) -
+			  (math.sin(to_radians(from.lat)) * math.cos(to_radians(to.lat)) * math.cos(dLon))
+	local angle_radians = math.atan2(y, x)
+	return ((angle_radians * 180 / math.pi) + 360) % 360  -- in degrees
 end
 
 function interpolate(from, to, fraction)
@@ -160,10 +169,7 @@ end
 
 -- returns the determinant of a 2x2 matrix
 function determinant(m) 
-    -- print("  M = " .. dump(m))
-    local det = m[1][1] * m[2][2] - m[1][2] * m[2][1]
-    -- print("  det = " .. det)
-    return det
+    return m[1][1] * m[2][2] - m[1][2] * m[2][1]
 end
 
 -- returns the sign of the determinant of a 2x2 matrix
