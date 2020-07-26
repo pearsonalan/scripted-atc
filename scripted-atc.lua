@@ -140,7 +140,7 @@ function haversine(lat1, lon1, lat2, lon2)
     local delta_lat = to_radians(lat2 - lat1)
     local delta_lon = to_radians(lon2 - lon1)
 
-    -- apply formulae 
+    -- apply formulae
     local a = math.pow(math.sin(delta_lat / 2), 2) +
               math.pow(math.sin(delta_lon / 2), 2) *
               math.cos(to_radians(lat1)) * math.cos(to_radians(lat2));
@@ -152,6 +152,7 @@ function haversine_pos(from, to)
     return haversine(from.lat, from.lon, to.lat, to.lon)
 end
 
+-- Returns the true bearing from the "from" location to the "to" location.
 function bearing(from, to)
     local dLon = to_radians(to.lon - from.lon)
 	local y = math.sin(dLon) * math.cos(to_radians(to.lat))
@@ -159,6 +160,23 @@ function bearing(from, to)
 			  (math.sin(to_radians(from.lat)) * math.cos(to_radians(to.lat)) * math.cos(dLon))
 	local angle_radians = math.atan2(y, x)
 	return ((angle_radians * 180 / math.pi) + 360) % 360  -- in degrees
+end
+
+-- may be overriden in scripts
+VAR = 0
+
+-- Returns the magnetic heading from the "from" location to the "to" location.
+-- This is the true bearing adjusted for magnetic variation
+function magnetic_heading(from, to)
+	return (bearing(from, to) + VAR + 360) % 360
+end
+
+-- Returns the "ATC assigned" heading from the "from" location to the "to" location.
+-- ATC typically gives headings in even "10's". Instead of saying "fly heading 272" they
+-- will say "fly heading 270".  This returns the magnetic heading rounded to the 
+-- nearest multiple of 10.
+function heading(from, to)
+	return math.floor((magnetic_heading(from, to) + 5) / 10) * 10
 end
 
 function interpolate(from, to, fraction)

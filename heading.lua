@@ -41,6 +41,21 @@ function bearing(from, to)
 	return ((angle_radians * 180 / math.pi) + 360) % 360  -- in degrees
 end
 
+-- Returns the magnetic heading from the "from" location to the "to" location.
+-- This is the true bearing adjusted for magnetic variation
+function magnetic_heading(from, to)
+	return (bearing(from, to) + VAR + 360) % 360
+end
+
+-- Returns the "ATC assigned" heading from the "from" location to the "to" location.
+-- ATC typically gives headings in even "10's". Instead of saying "fly heading 272" they
+-- will say "fly heading 270".  This returns the magnetic heading rounded to the 
+-- nearest multiple of 10.
+function heading(from, to)
+	return math.floor((magnetic_heading(from, to) + 5) / 10) * 10
+end
+
 printf("Haversine distance from LOFAL to JAWBN is %0.2f", haversine_pos(LOFAL, JAWBN))
 printf("True Course from LOFAL to JAWBN is %0.2f", bearing(LOFAL, JAWBN))
-printf("Magnetic Heading from LOFAL to JAWBN is %0.2f", bearing(LOFAL, JAWBN) + VAR)
+printf("Magnetic Heading from LOFAL to JAWBN is %0.2f", magnetic_heading(LOFAL, JAWBN))
+printf("ATC Heading from LOFAL to JAWBN is %0d", heading(LOFAL, JAWBN))
